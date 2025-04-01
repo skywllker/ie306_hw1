@@ -1,0 +1,51 @@
+# Stationary Queueing Network Analysis Results (Part 1.1 - Group 36)
+
+**Parameters Used:**
+*   Arrival Rate (λ) = 1 patient/hour
+*   Number of Triage Nurses (S) = 4
+*   Triage Evaluation Rate (μt) = 1/3 patients/hour ≈ 0.333
+*   Probability of Stable Condition (p1) = 0.25
+*   Probability of Critical Condition (p2) = 0.75
+*   Number of Hospital Beds (K) = 7
+*   Critical Patient Hospital Healing Rate (μcb) ≈ 0.15306 patients/hour
+*   Stable Patient Home Healing Rate (μs) = 0.16 patients/hour
+*   Average Adjustment Factor (α_avg) = 1.5
+*   Critical Patient Home Healing Rate (μch) = μcb / α_avg ≈ 0.10204 patients/hour
+
+**Calculated Metrics:**
+
+1.  **Average Utilization of Nurses (U_nurse):**
+    *   Formula: U_nurse = (λ / μt) / S
+    *   Calculation: (1 / (1/3)) / 4 = 3 / 4 = 0.75
+    *   **Result: 0.75 (or 75%)**
+
+2.  **Average Queue Length of Triage (Lq):**
+    *   Formula: Lq = (P0 * (λ/μt)^S * (λ/(S*μt))) / (S! * (1 - λ/(S*μt))^2)
+    *   Intermediate Calculations:
+        *   Offered Load (a) = λ/μt = 3
+        *   Traffic Intensity (ρ) = a/S = 0.75
+        *   P0 ≈ 0.03774
+    *   Calculation: Lq ≈ (0.03774 * 3^4 * 0.75) / (4! * (1 - 0.75)^2) ≈ 1.528
+    *   **Result: ≈ 1.528 patients**
+
+3.  **Rejection Probability of Critical Patients (Pb):**
+    *   Formula: Erlang B Formula B(K, λ_crit / μcb) where λ_crit = λ * p2
+    *   Intermediate Calculations:
+        *   Critical Arrival Rate (λ_crit) = 1 * 0.75 = 0.75
+        *   Offered Load to Beds (a_bed) = λ_crit / μcb ≈ 0.75 / 0.15306 ≈ 4.90
+    *   Calculation: Pb = B(7, 4.90) ≈ 0.11428
+    *   **Result: ≈ 0.1143 (or 11.43%)**
+
+4.  **Average Number of Occupied Beds in Hospital (L_bed):**
+    *   Formula: L_bed = a_bed * (1 - Pb)
+    *   Calculation: L_bed ≈ 4.90 * (1 - 0.11428) ≈ 4.340
+    *   **Result: ≈ 4.340 beds**
+
+5.  **Average Number of Patients Treated at Home (L_home):**
+    *   *(Average number of patients currently in the home healing state)*
+    *   Formula: L_home = (λ*p1 / μs) + (λ*p2*Pb / μch)
+    *   Intermediate Calculations:
+        *   Arrival Rate (Stable): λ_stable = 1 * 0.25 = 0.25
+        *   Arrival Rate (Rejected Critical): λ_rej_crit = 0.75 * Pb ≈ 0.08571
+    *   Calculation: L_home ≈ (0.25 / 0.16) + (0.08571 / 0.10204) ≈ 1.5625 + 0.8400 ≈ 2.4025
+    *   **Result: ≈ 2.403 patients**

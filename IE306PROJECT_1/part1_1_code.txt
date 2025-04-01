@@ -1,0 +1,156 @@
+STRUCT Patient:
+    id: unique identifier
+    arrival_time: timestamp
+    condition: {STABLE, CRITICAL}
+    treatment_status: {WAITING, TRIAGED, HOME_CARE, HOSPITAL_CARE}
+    initial_condition_time: timestamp
+
+STRUCT Event:
+    type: {PATIENT_ARRIVAL, TRIAGE_START, TRIAGE_COMPLETE, 
+           PATIENT_DISCHARGE, BED_ALLOCATION, BED_DEALLOCATION}
+    time: timestamp
+    associated_patient: Patient reference
+    associated_nurse: Nurse reference
+
+STRUCT Nurse:
+    id: unique identifier
+    status: {IDLE, BUSY}
+    current_patient: Patient reference or NULL
+
+STRUCT Hospital:
+    total_nurses: integer
+    available_nurses: integer
+    total_beds: integer
+    available_beds: integer
+    patient_queue: Queue of Patients
+    event_queue: Priority Queue of Events
+
+CONSTANTS:
+    ARRIVAL_RATE (λ): 1 patient/hour
+    TRIAGE_RATE (µt): nurse evaluation rate
+    STABLE_PROBABILITY (p1): probability of stable condition
+    CRITICAL_PROBABILITY (p2): probability of critical condition
+    STABLE_HEALING_RATE (µs): 0.16 patient/hour
+    CRITICAL_HOSPITAL_HEALING_RATE (µcb): hospital healing rate
+    CRITICAL_HOME_HEALING_RATE (µch): home care healing rate
+
+# Random Number Generation Functions
+FUNCTION generate_exponential_time(rate):
+    u = generate_uniform_random_number(0, 1)
+    return -ln(1 - u) / rate
+
+FUNCTION generate_uniform_random(min, max):
+    u = generate_uniform_random_number(0, 1)
+    return min + u * (max - min)
+
+FUNCTION determine_patient_condition():
+    u = generate_uniform_random_number(0, 1)
+    IF u < STABLE_PROBABILITY:
+        RETURN STABLE
+    ELSE:
+        RETURN CRITICAL
+
+# Simulation Core Functions
+FUNCTION initialize_simulation():
+    hospital = new Hospital()
+    hospital.total_nurses = S
+    hospital.available_nurses = S
+    hospital.total_beds = K
+    hospital.available_beds = K
+    
+    first_arrival_time = generate_exponential_time(ARRIVAL_RATE)
+    first_arrival_event = create_patient_arrival_event(first_arrival_time)
+    hospital.event_queue.add(first_arrival_event)
+
+FUNCTION process_patient_arrival(event):
+    new_patient = create_new_patient(event.time)
+    hospital.patient_queue.enqueue(new_patient)
+    
+    next_arrival_time = event.time + generate_exponential_time(ARRIVAL_RATE)
+    next_arrival_event = create_patient_arrival_event(next_arrival_time)
+    hospital.event_queue.add(next_arrival_event)
+    
+    attempt_triage()
+
+FUNCTION attempt_triage():
+    WHILE hospital.available_nurses > 0 AND NOT hospital.patient_queue.is_empty():
+        patient = hospital.patient_queue.dequeue()
+        nurse = assign_available_nurse()
+        
+        triage_duration = generate_exponential_time(TRIAGE_RATE)
+        triage_complete_event = create_triage_complete_event(
+            patient, 
+            current_time + triage_duration
+        )
+        hospital.event_queue.add(triage_complete_event)
+
+FUNCTION process_triage_complete(event):
+    patient = event.associated_patient
+    nurse = event.associated_nurse
+    
+    patient.condition = determine_patient_condition()
+    
+    IF patient.condition == STABLE:
+        discharge_time = current_time + generate_exponential_time(STABLE_HEALING_RATE)
+        discharge_event = create_discharge_event(patient, discharge_time)
+        hospital.event_queue.add(discharge_event)
+    
+    ELSE IF patient.condition == CRITICAL:
+        IF hospital.available_beds > 0:
+            allocate_hospital_bed(patient)
+        ELSE:
+            alpha = generate_uniform_random(1.25, 1.75)
+            discharge_time = current_time + 
+                             alpha * generate_exponential_time(CRITICAL_HOME_HEALING_RATE)
+            discharge_event = create_discharge_event(patient, discharge_time)
+            hospital.event_queue.add(discharge_event)
+    
+    release_nurse(nurse)
+    attempt_triage()
+
+FUNCTION allocate_hospital_bed(patient):
+    hospital.available_beds -= 1
+    patient.treatment_status = HOSPITAL_CARE
+    
+    discharge_time = current_time + generate_exponential_time(CRITICAL_HOSPITAL_HEALING_RATE)
+    discharge_event = create_discharge_event(patient, discharge_time)
+    hospital.event_queue.add(discharge_event)
+
+FUNCTION process_discharge(event):
+    patient = event.associated_patient
+    
+    IF patient.treatment_status == HOSPITAL_CARE:
+        hospital.available_beds += 1
+    
+    patient.treatment_status = DISCHARGED
+
+FUNCTION collect_statistics():
+    # Track metrics like:
+    # - Average waiting time
+    # - Nurse utilization
+    # - Bed occupancy
+    # - Patient outcomes
+
+FUNCTION run_simulation(total_simulation_time):
+    initialize_simulation()
+    
+    WHILE NOT hospital.event_queue.is_empty() AND 
+          current_time < total_simulation_time:
+        next_event = hospital.event_queue.get_next()
+        current_time = next_event.time
+        
+        SWITCH next_event.type:
+            CASE PATIENT_ARRIVAL:
+                process_patient_arrival(next_event)
+            CASE TRIAGE_COMPLETE:
+                process_triage_complete(next_event)
+            CASE PATIENT_DISCHARGE:
+                process_discharge(next_event)
+
+FUNCTION main():
+    total_simulation_time = 100 hours
+    random_seed = initialize_random_seed()
+    
+    run_simulation(total_simulation_time)
+    
+    display_simulation_results()

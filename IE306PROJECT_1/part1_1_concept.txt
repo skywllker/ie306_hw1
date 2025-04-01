@@ -1,0 +1,74 @@
+## Conceptual Model - Part 1.1
+**1. Objectives:**
+    - To evaluate the hospital's capacity to handle patient flow.
+    - To analyze system performance metrics such as nurse utilization, bed occupancy, patient waiting times, and rejection probability.
+    - To understand the impact of different parameters (e.g., number of nurses, beds) on system performance.
+
+**2. Inputs (Experimental Factors):**
+    - Number of triage nurses (S)
+    - Number of hospital beds (K)
+    - Patient arrival rate (λ)
+    - Triage evaluation rate (μt)
+    - Stable patient healing rate (μs)
+    - Critical patient hospital healing rate (μcb)
+    - Critical patient home healing rate (μch)
+    - Probability of stable condition (p1)
+    - Probability of critical condition (p2)
+
+**3. Outputs (Responses):**
+    - Average utilization of triage nurses
+    - Average queue length of triage
+    - Rejection probability of critical patients due to bed unavailability
+    - Average number of occupied beds in the hospital
+    - Average number of patients treated at home
+    - Proportion of critical patients rejected
+    - Proportion of patients treated at home
+    - Average total time a patient spends in the system
+
+**4. Model Content (Scope and Level of Detail):**
+
+    **Entities:**
+        - Patients (Attributes: Patient ID, Arrival Time, Triage Queue Entry Time, Triage Service Start Time, Triage Service End Time, Condition, Treatment Location, Treatment Start Time, Treatment End Time, Waiting Time in Triage, Hospital Bed Rejection Status, Status, Total Time in System)
+
+    **Resources:**
+        - Triage Nurses (S units, Attributes: Status - idle/busy)
+        - Hospital Beds (K units, Attributes: Status - empty/occupied)
+
+    **Events:**
+        - Patient Arrival
+        - Triage Completion
+        - Hospital Healing Completion
+        - Home Healing Completion
+
+    **Activities:**
+        - Triage Evaluation Time (Exponential distribution with rate μt)
+        - Stable Patient Home Healing Time (Exponential distribution with rate μs)
+        - Critical Patient Hospital Healing Time (Exponential distribution with rate μcb)
+        - Critical Patient Home Healing Time (Exponential distribution with rate μch, adjusted by α)
+
+    **Delays:**
+        - Waiting in Triage Queue (if all nurses are busy)
+        - Waiting for Hospital Bed (if critical and no beds available)
+
+    **System States:**
+        - System Clock (Current Simulation Time)
+        - Future Event List (FEL - ordered list of scheduled future events)
+        - Number of patients in the triage queue
+        - Status of each triage nurse (idle/busy) - *Implicitly tracked via 'Number of busy triage nurses'*
+        - Number of busy triage nurses
+        - Status of each hospital bed (empty/occupied) - *Implicitly tracked via 'Number of occupied hospital beds'*
+        - Number of occupied hospital beds
+        - State of each Patient (including attributes like current status: waiting for triage, in triage, waiting for bed, in hospital treatment, in home treatment, healed)
+        - Statistical Accumulators (e.g., total waiting times, counts of rejected patients, resource busy times, total time in system) - *Used for calculating outputs*
+
+**5. Assumptions and Simplifications:**
+    - Patient arrivals follow a Poisson process (exponential inter-arrival times).
+    - Triage evaluation times are exponentially distributed.
+    - Healing times are exponentially distributed.
+    - Nurses and beds are always available (no staff breaks, equipment failures, etc.).
+    - Patients are processed on a first-come, first-served basis in the triage queue.
+    - Bed allocation is immediate if a bed is available for critical patients.
+    - Home care is always available for stable and rejected critical patients.
+    - The simulation focuses on patient flow and resource utilization, not on detailed medical processes or patient demographics.
+    - The system starts in an empty and idle state at time 0.
+    - The simulation termination condition needs to be defined (e.g., run for a specific simulated time duration or until a specific number of patients have completed treatment) to ensure stable output statistics.

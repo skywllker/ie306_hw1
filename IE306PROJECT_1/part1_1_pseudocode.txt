@@ -1,0 +1,255 @@
+// --- Part 1.1: Hospital Emergency Department Simulation Pseudocode ---
+
+// --- 1. Define Variables and Data Structures ---
+
+// Inputs (Parameters)
+S = Number of triage nurses
+K = Number of hospital beds
+lambda = Patient arrival rate (patients per unit time)
+mu_t = Triage evaluation rate
+mu_s = Stable patient home healing rate
+mu_cb = Critical patient hospital healing rate
+mu_ch = Critical patient home healing rate (adjusted by alpha)
+p1 = Probability of stable condition
+p2 = Probability of critical condition (p2 = 1 - p1)
+alpha = Adjustment factor for critical patient home healing time
+TerminationTime = Simulation end time (or other termination condition)
+
+// System State Variables
+Clock = Current simulation time
+FEL = Future Event List (Priority Queue: stores events ordered by time)
+    // Event structure: {Time, Type, PatientID (optional)}
+TriageQueue = Queue of patients waiting for triage (FIFO)
+BusyNurses = Number of currently busy triage nurses
+OccupiedBeds = Number of currently occupied hospital beds
+NextPatientID = Counter for assigning unique patient IDs
+
+// Patient Data Structure (can be stored in a list or dictionary)
+Patients = Collection of patient records
+    // Patient record: {ID, ArrivalTime, TriageQueueEntryTime, TriageStartTime, TriageEndTime, Condition, TreatmentLocation, TreatmentStartTime, TreatmentEndTime, WasRejected, Status, TotalTime}
+
+// Statistical Accumulators
+TotalPatientsArrived = Count of patients who arrived
+TotalPatientsHealed = Count of patients who completed treatment
+TotalPatientsRejected = Count of critical patients rejected due to no beds
+TotalTriageWaitingTime = Sum of waiting times for all patients in triage queue
+TotalNurseBusyTime = Accumulated time nurses were busy
+TotalBedOccupancyTime = Accumulated time beds were occupied
+TotalSystemTime = Sum of total time spent in system for all healed patients
+TotalHomeTreated = Count of patients treated at home (stable + rejected critical)
+
+// --- 2. Initialization Routine ---
+
+PROCEDURE InitializeSimulation:
+    Clock = 0
+    FEL = Empty Priority Queue
+    TriageQueue = Empty Queue
+    BusyNurses = 0
+    OccupiedBeds = 0
+    NextPatientID = 1
+    Patients = Empty Collection
+
+    // Initialize Statistical Accumulators
+    TotalPatientsArrived = 0
+    TotalPatientsHealed = 0
+    TotalPatientsRejected = 0
+    TotalTriageWaitingTime = 0
+    TotalNurseBusyTime = 0 // Need to track start/end times of busy periods
+    TotalBedOccupancyTime = 0 // Need to track start/end times of occupancy periods
+    TotalSystemTime = 0
+    TotalHomeTreated = 0
+
+    // Schedule the first patient arrival
+    ArrivalTime = GenerateExponential(lambda)
+    ScheduleEvent(FEL, ArrivalTime, "PatientArrival", NULL) // No specific patient yet
+
+    // Initialize tracking for busy time calculations (e.g., LastEventTime = 0)
+    LastEventTime_Nurse = 0
+    LastEventTime_Bed = 0
+
+END PROCEDURE
+
+// --- 3. Main Simulation Loop ---
+
+PROCEDURE RunSimulation:
+    InitializeSimulation()
+
+    WHILE Clock < TerminationTime AND FEL is not empty: // Or other termination condition
+        CurrentEvent = GetNextEvent(FEL)
+        PreviousClock = Clock
+        Clock = CurrentEvent.Time
+
+        // Update time-integral statistics before processing event
+        UpdateStats(PreviousClock, Clock) // Update NurseBusyTime, BedOccupancyTime
+
+        // Process event based on type
+        IF CurrentEvent.Type == "PatientArrival":
+            HandlePatientArrival()
+        ELSE IF CurrentEvent.Type == "TriageCompletion":
+            HandleTriageCompletion(CurrentEvent.PatientID)
+        ELSE IF CurrentEvent.Type == "HospitalHealingCompletion":
+            HandleHospitalHealingCompletion(CurrentEvent.PatientID)
+        ELSE IF CurrentEvent.Type == "HomeHealingCompletion":
+            HandleHomeHealingCompletion(CurrentEvent.PatientID)
+        END IF
+    END WHILE
+
+    CalculateAndReportResults()
+
+END PROCEDURE
+
+// --- 4. Event Handling Procedures ---
+
+PROCEDURE HandlePatientArrival:
+    TotalPatientsArrived = TotalPatientsArrived + 1
+    PatientID = NextPatientID
+    NextPatientID = NextPatientID + 1
+    CreatePatientRecord(Patients, PatientID, Clock) // Status: Arrived
+
+    // Schedule the next patient arrival
+    NextArrivalTime = Clock + GenerateExponential(lambda)
+    IF NextArrivalTime < TerminationTime:
+        ScheduleEvent(FEL, NextArrivalTime, "PatientArrival", NULL)
+    END IF
+
+    // Check triage nurse availability
+    IF BusyNurses < S:
+        // Assign to nurse
+        BusyNurses = BusyNurses + 1
+        UpdatePatientRecord(Patients, PatientID, TriageStartTime=Clock, Status="InTriage")
+        TriageDuration = GenerateExponential(mu_t)
+        ScheduleEvent(FEL, Clock + TriageDuration, "TriageCompletion", PatientID)
+    ELSE:
+        // Add to triage queue
+        AddToQueue(TriageQueue, PatientID)
+        UpdatePatientRecord(Patients, PatientID, TriageQueueEntryTime=Clock, Status="WaitingTriage")
+    END IF
+END PROCEDURE
+
+PROCEDURE HandleTriageCompletion(PatientID):
+    BusyNurses = BusyNurses - 1
+    UpdatePatientRecord(Patients, PatientID, TriageEndTime=Clock)
+
+    // Determine patient condition
+    ConditionRoll = GenerateUniform(0, 1)
+    IF ConditionRoll < p1:
+        PatientCondition = "Stable"
+        UpdatePatientRecord(Patients, PatientID, Condition="Stable")
+        // Schedule home healing
+        HealingDuration = GenerateExponential(mu_s)
+        ScheduleEvent(FEL, Clock + HealingDuration, "HomeHealingCompletion", PatientID)
+        UpdatePatientRecord(Patients, PatientID, TreatmentLocation="Home", TreatmentStartTime=Clock, Status="HomeHealing")
+        TotalHomeTreated = TotalHomeTreated + 1
+    ELSE:
+        PatientCondition = "Critical"
+        UpdatePatientRecord(Patients, PatientID, Condition="Critical")
+        // Check hospital bed availability
+        IF OccupiedBeds < K:
+            // Assign to bed
+            OccupiedBeds = OccupiedBeds + 1
+            HealingDuration = GenerateExponential(mu_cb)
+            ScheduleEvent(FEL, Clock + HealingDuration, "HospitalHealingCompletion", PatientID)
+            UpdatePatientRecord(Patients, PatientID, TreatmentLocation="Hospital", TreatmentStartTime=Clock, Status="HospitalHealing")
+        ELSE:
+            // Reject patient (send to home healing with adjusted time)
+            TotalPatientsRejected = TotalPatientsRejected + 1
+            HealingDuration = GenerateExponential(mu_ch) * alpha // Adjusted time
+            ScheduleEvent(FEL, Clock + HealingDuration, "HomeHealingCompletion", PatientID)
+            UpdatePatientRecord(Patients, PatientID, TreatmentLocation="HomeRejected", TreatmentStartTime=Clock, WasRejected=True, Status="HomeHealingRejected")
+            TotalHomeTreated = TotalHomeTreated + 1
+        END IF
+    END IF
+
+    // Check triage queue for waiting patients
+    IF TriageQueue is not empty:
+        NextPatientID_Queue = RemoveFromQueue(TriageQueue)
+        BusyNurses = BusyNurses + 1
+        // Calculate waiting time
+        PatientWaitedTime = Clock - GetPatientRecord(Patients, NextPatientID_Queue).TriageQueueEntryTime
+        TotalTriageWaitingTime = TotalTriageWaitingTime + PatientWaitedTime
+        // Start triage for the waiting patient
+        UpdatePatientRecord(Patients, NextPatientID_Queue, TriageStartTime=Clock, Status="InTriage")
+        TriageDuration = GenerateExponential(mu_t)
+        ScheduleEvent(FEL, Clock + TriageDuration, "TriageCompletion", NextPatientID_Queue)
+    END IF
+END PROCEDURE
+
+PROCEDURE HandleHospitalHealingCompletion(PatientID):
+    OccupiedBeds = OccupiedBeds - 1
+    TotalPatientsHealed = TotalPatientsHealed + 1
+    UpdatePatientRecord(Patients, PatientID, TreatmentEndTime=Clock, Status="Healed")
+    // Record total system time
+    PatientTotalTime = Clock - GetPatientRecord(Patients, PatientID).ArrivalTime
+    TotalSystemTime = TotalSystemTime + PatientTotalTime
+END PROCEDURE
+
+PROCEDURE HandleHomeHealingCompletion(PatientID):
+    TotalPatientsHealed = TotalPatientsHealed + 1
+    UpdatePatientRecord(Patients, PatientID, TreatmentEndTime=Clock, Status="Healed")
+    // Record total system time
+    PatientTotalTime = Clock - GetPatientRecord(Patients, PatientID).ArrivalTime
+    TotalSystemTime = TotalSystemTime + PatientTotalTime
+END PROCEDURE
+
+// --- 5. Utility Procedures ---
+
+FUNCTION GenerateExponential(rate):
+    // Returns a random number from an exponential distribution
+    // Formula: -ln(Uniform(0,1)) / rate
+    RETURN -ln(GenerateUniform(0, 1)) / rate
+END FUNCTION
+
+FUNCTION GenerateUniform(min, max):
+    // Returns a random number from a uniform distribution between min and max
+    RETURN min + (max - min) * Random() // Assuming Random() gives [0,1)
+END FUNCTION
+
+PROCEDURE ScheduleEvent(FEL, Time, Type, PatientID):
+    NewEvent = {Time: Time, Type: Type, PatientID: PatientID}
+    InsertIntoFEL(FEL, NewEvent) // Insert maintaining time order
+END PROCEDURE
+
+FUNCTION GetNextEvent(FEL):
+    // Removes and returns the earliest event from FEL
+    RETURN RemoveMinFromFEL(FEL)
+END FUNCTION
+
+PROCEDURE UpdateStats(PreviousClock, CurrentClock):
+    // Update time-integral statistics based on state during [PreviousClock, CurrentClock)
+    TimeInterval = CurrentClock - PreviousClock
+    TotalNurseBusyTime = TotalNurseBusyTime + (BusyNurses * TimeInterval)
+    TotalBedOccupancyTime = TotalBedOccupancyTime + (OccupiedBeds * TimeInterval)
+    // Update other time-weighted stats if needed (e.g., queue length)
+END PROCEDURE
+
+// --- 6. Reporting ---
+
+PROCEDURE CalculateAndReportResults:
+    // Calculate final statistics
+    AvgNurseUtilization = TotalNurseBusyTime / (S * Clock)
+    AvgTriageQueueLength = TotalTriageWaitingTime / Clock // Approximation, better methods exist
+    RejectionProbability = TotalPatientsRejected / (TotalPatientsArrived - TotalPatientsHealed) // Or based on critical arrivals
+    AvgOccupiedBeds = TotalBedOccupancyTime / Clock
+    AvgHomeTreated = TotalHomeTreated // This is a count, maybe avg number in home treatment over time?
+    ProportionRejected = TotalPatientsRejected / (Number of Critical Patients Arrived) // Need to track critical arrivals
+    ProportionHomeTreated = TotalHomeTreated / TotalPatientsHealed // Or TotalPatientsArrived?
+    AvgSystemTime = TotalSystemTime / TotalPatientsHealed
+
+    // Print or store results
+    PRINT "Simulation Ended at Time:", Clock
+    PRINT "Average Nurse Utilization:", AvgNurseUtilization
+    PRINT "Average Triage Queue Length (Approx):", AvgTriageQueueLength
+    PRINT "Rejection Probability (Approx):", RejectionProbability
+    PRINT "Average Occupied Beds:", AvgOccupiedBeds
+    PRINT "Total Patients Treated at Home:", TotalHomeTreated
+    PRINT "Proportion of Critical Patients Rejected (Approx):", ProportionRejected
+    PRINT "Proportion of Patients Treated at Home (Approx):", ProportionHomeTreated
+    PRINT "Average Total Time in System:", AvgSystemTime
+    // ... print other relevant stats
+
+END PROCEDURE
+
+// --- Helper functions for data structures (assumed implementations) ---
+// CreatePatientRecord, UpdatePatientRecord, GetPatientRecord
+// AddToQueue, RemoveFromQueue, QueueIsEmpty
+// InsertIntoFEL, RemoveMinFromFEL, FELIsEmpty
