@@ -7,7 +7,7 @@ from tabulate import tabulate  # For nice table output
 import matplotlib.pyplot as plt
 from collections import defaultdict
 
-# --- Parameters (Group 36 from parameter values document) ---
+# --- Parameters (Group 36) ---
 LAMBDA = 1.0  # Arrival rate (patients/hour) - fixed for all groups
 MU_T = 1.0 / 3.0  # Triage nurse service rate (patients/hour)
 MU_S = 0.16  # Stable patient home healing rate (patients/hour) - fixed for all groups
@@ -15,12 +15,12 @@ MU_CB = 0.153061224  # Critical patient hospital healing rate (patients/hour)
 ALPHA_MIN = 1.25  # Min value for alpha uniform distribution
 ALPHA_MAX = 1.75  # Max value for alpha uniform distribution
 P1 = 0.25  # Probability of stable condition
-P2 = 1.0 - P1  # Probability of critical condition
+P2 = 0.75  # Probability of critical condition (1.0 - P1)
 S = 4  # Number of triage nurses
 K = 7  # Number of hospital beds
 
 # Group ID sum for random seed
-GROUP_SEED = 123456789  # Replace with actual sum of your group members' IDs
+GROUP_SEED = 4040800288  # Updated with your group seed
 
 # --- Import functions from part1_2_functions.py ---
 # Assuming these functions are available from the previous part
